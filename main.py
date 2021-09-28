@@ -1,68 +1,122 @@
 import numpy as np
+from tensorflow.keras.utils import to_categorical
 from keras_preprocessing.image import ImageDataGenerator
 from matplotlib import pyplot as plt
 from tensorflow.keras.datasets import cifar10
-from tensorflow.keras import models
-from tensorflow.keras import layers
-from tensorflow import keras
+from tensorflow.keras import models, layers
+from tensorflow.keras.layers import BatchNormalization, Activation
 import tensorflow as tf
+from sklearn.model_selection import train_test_split
 
-# cifar-10 dataset 가져오기
-from tensorflow_core.python.keras.utils.np_utils import to_categorical
-
+# CIFAR-10 dataset 가져오기
 (x_train, y_train), (x_test, y_test) = cifar10.load_data()
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 # 이미지 시각화
-for i in range(1, 11):
-    ax = plt.subplot(2, 5, i)
-    ax.imshow(x_train[i])
-    ax.set_title(np.array(class_names)[y_train[i]])
+plt.figure(figsize=[10, 10])
+for i in range(25):    # 1~25번째 이미지
+  plt.subplot(5, 5, i+1)
+  plt.xticks([])
+  plt.yticks([])
+  plt.grid(False)
+  plt.imshow(x_train[i], cmap=plt.cm.binary)
+  plt.xlabel(class_names[y_train[i][0]])
 plt.show()
+
+# validation set 만들기
+x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, stratify=y_train, random_state=1)
 
 # sample 정보
 print("Train samples : ", x_train.shape, y_train.shape)
+print("Validation samples : ", x_val.shape, y_val.shape)
 print("Test samples : ", x_test.shape, y_test.shape)
 
-# 정규화 및 데이터 늘리기
-train_gen = ImageDataGenerator(featurewise_center=True, featurewise_std_normalization=True,
-                             width_shift_range=0.125, height_shift_range=0.125,
-                             horizontal_flip=True)
-test_gen = ImageDataGenerator(featurewise_center=True, featurewise_std_normalization=True)
-for data in (train_gen, test_gen):
-    data.fit(x_train)
+# 데이터 확대
+gen = ImageDataGenerator(rotation_range=20, shear_range=0.2,
+                         width_shift_range=0.2, height_shift_range=0.2,
+                         horizontal_flip=True)
+augment_ratio = 1.5  # 40000*1.5 = 60000개의 train sample 추가
+augment_size = int(augment_ratio * x_train.shape[0])
+randidx = np.random.randint(x_train.shape[0], size=augment_size)
+x_augmented = x_train[randidx].copy()
+y_augmented = y_train[randidx].copy()
+x_augmented, y_augmented = gen.flow(x_augmented, y_augmented, batch_size=augment_size,
+                                    shuffle=False).next()
+x_train = np.concatenate((x_train, x_augmented))
+y_train = np.concatenate((y_train, y_augmented))
+s = np.arange(x_train.shape[0])
+np.random.shuffle(s)
+x_train = x_train[s]
+y_train = y_train[s]
+print("after augmented (train set) : ", x_train.shape, y_train.shape)
+
+# 픽셀값 정규화
+x_train = x_train.astype('float32')
+x_val = x_val.astype('float32')
+x_test = x_test.astype('float32')
+x_train = x_train / 255
+x_val = x_val / 255
+x_test = x_test / 255
 
 # 원 핫 인코딩
 y_train = to_categorical(y_train, 10)
+y_val = to_categorical(y_val, 10)
 y_test = to_categorical(y_test, 10)
 
-epochs = 100
+epochs = 20
 
 # 훈련 모델
 model = models.Sequential()
-model.add(layers.Conv2D(32, (3, 3), padding='same', kernel_regularizer=keras.regularizers.l2(0.001), activation='relu',
-                        input_shape=(32, 32, 3)))
-model.add(layers.Dropout(0.3))
+# Conv Layer1
+model.add(layers.Conv2D(32, (3, 3), padding='same', input_shape=(32, 32, 3)))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Conv Layer2
+model.add(layers.Conv2D(32, (3, 3), padding='same'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Pooling Layer1
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Conv2D(64, (3, 3), padding='same', kernel_regularizer=keras.regularizers.l2(0.001), activation='relu'))
+model.add(layers.Dropout(0.3))  # Dropout
+# Conv Layer3
+model.add(layers.Conv2D(64, (3, 3), padding='same'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Conv Layer4
+model.add(layers.Conv2D(64, (3, 3), padding='same'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Pooling Layer2
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Conv2D(64, (3, 3), padding='same', kernel_regularizer=keras.regularizers.l2(0.001), activation='relu'))
+model.add(layers.Dropout(0.5))  # Dropout
+# Conv Layer5
+model.add(layers.Conv2D(128, (3, 3), padding='same'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Conv Layer6
+model.add(layers.Conv2D(128, (3, 3), padding='same'))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+# Pooling Layer3
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Conv2D(32, (3, 3), padding='same', kernel_regularizer=keras.regularizers.l2(0.001), activation='relu'))
-model.add(layers.MaxPool2D((2, 2)))
+model.add(layers.Dropout(0.5))  # Dropout
+# Flat Layer
 model.add(layers.Flatten())
-model.add(layers.Dense(32, kernel_regularizer=keras.regularizers.l2(0.001), activation='relu'))
-model.add(layers.Dropout(0.5))
-model.add(layers.Dense(10, kernel_regularizer=keras.regularizers.l2(0.001), activation='softmax'))
+# Dense Layer1
+model.add(layers.Dense(128))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+model.add(layers.Dropout(0.5))  # Dropout
+# Dense Layer2
+model.add(layers.Dense(10, activation='softmax'))
 
+# 모델 학습
 model.summary()
 model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-              loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-history = model.fit(train_gen.flow(x_train, y_train, batch_size=32),
-                    epochs=epochs, verbose=2, validation_data=test_gen.flow(x_test, y_test, batch_size=32),
-                    validation_steps=x_test.shape[0]//128)
-test_loss, test_acc = model.evaluate(test_gen.flow(x_test, y_test, batch_size=32))
-print("Test accuracy : ", test_acc)  # Test accuracy : 0.7518
+              loss='categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(x_train, y_train, batch_size=64, epochs=epochs, validation_data=(x_val, y_val))
+test_loss, test_acc = model.evaluate(x_test, y_test)
+print("Test accuracy : ", test_acc)  # Test accuracy : 0.8187
 
 acc = history.history['accuracy']
 val_acc = history.history['val_accuracy']
@@ -90,10 +144,14 @@ plt.ylabel('Loss')
 plt.title('Training and Validation Loss')
 plt.show()
 
-# test
-plt.rcParams["figure.figsize"] = (2, 2)
-for i in range(10):
-    output = model.predict(x_test[i].reshape(0, 32, 32, 3))
-    plt.imshow(x_test[i].reshape(32, 32, 3))
-    print("예측 : " + class_names[np.argmax(output)] + "/ 정답 : " + class_names[np.argmax(y_test[i])])
-    plt.show()
+# Test
+predict = model.predict(x_test)
+predict_classes = np.argmax(predict, axis=1)
+fig, axes = plt.subplots(5, 5, figsize=(15, 15))
+axes = axes.ravel()
+for i in np.arange(0, 25):
+    axes[i].imshow(x_test[i])
+    axes[i].set_title("True: %s \nPredict: %s" % (class_names[np.argmax(y_test[i])], class_names[predict_classes[i]]))
+    axes[i].axis('off')
+    plt.subplots_adjust(wspace=1)
+
