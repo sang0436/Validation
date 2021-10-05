@@ -1,15 +1,14 @@
 import numpy as np
-from tensorflow.keras.utils import to_categorical
 from keras_preprocessing.image import ImageDataGenerator
 from matplotlib import pyplot as plt
 from tensorflow.keras.datasets import cifar10
-from tensorflow.keras import models, layers
-from tensorflow.keras.layers import BatchNormalization, Activation
-import tensorflow as tf
+from tensorflow.keras import models
+from tensorflow.keras import layers
 from sklearn.model_selection import train_test_split
+from tensorflow import keras
+from tensorflow.keras.utils import to_categorical
 
-# CIFAR-10 dataset 가져오기
-(x_train, y_train), (x_test, y_test) = cifar10.load_data()
+(x_train, y_train), (x_test, y_test) = cifar10.load_data()  # cifar-10 dataset 가져오기
 class_names = ['airplane', 'automobile', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck']
 
 # 이미지 시각화
@@ -26,12 +25,10 @@ plt.show()
 # validation set 만들기
 x_train, x_val, y_train, y_val = train_test_split(x_train, y_train, test_size=0.2, stratify=y_train, random_state=1)
 
-# sample 정보
-print("Train samples : ", x_train.shape, y_train.shape)
-print("Validation samples : ", x_val.shape, y_val.shape)
-print("Test samples : ", x_test.shape, y_test.shape)
+print("Train samples : ", x_train.shape, y_train.shape)  # 40000개의 32*32, 3개 채널의 train sample
+print("Validation samples : ", x_val.shape, y_val.shape)  # 10000개의 32*32, 3개 채널의 validation sample
+print("Test samples : ", x_test.shape, y_test.shape)  # 10000개의 32*32, 3개 채널의 test sample
 
-# 데이터 확대
 gen = ImageDataGenerator(rotation_range=20, shear_range=0.2,
                          width_shift_range=0.2, height_shift_range=0.2,
                          horizontal_flip=True)
@@ -63,60 +60,58 @@ y_train = to_categorical(y_train, 10)
 y_val = to_categorical(y_val, 10)
 y_test = to_categorical(y_test, 10)
 
-epochs = 20
+epochs = 100
 
-# 훈련 모델
+# CNN 모델 구현
 model = models.Sequential()
-# Conv Layer1
+# Conv layer 1
 model.add(layers.Conv2D(32, (3, 3), padding='same', input_shape=(32, 32, 3)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Conv Layer2
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Conv layer 2
 model.add(layers.Conv2D(32, (3, 3), padding='same'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Pooling Layer1
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Pooling layer 1
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Dropout(0.3))  # Dropout
-# Conv Layer3
+model.add(layers.Dropout(0.3))
+# Conv layer 3
 model.add(layers.Conv2D(64, (3, 3), padding='same'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Conv Layer4
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Conv layer 4
 model.add(layers.Conv2D(64, (3, 3), padding='same'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Pooling Layer2
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Pooling layer 2
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Dropout(0.5))  # Dropout
-# Conv Layer5
+model.add(layers.Dropout(0.3))
+# Conv layer 5
 model.add(layers.Conv2D(128, (3, 3), padding='same'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Conv Layer6
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Conv layer 6
 model.add(layers.Conv2D(128, (3, 3), padding='same'))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-# Pooling Layer3
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+# Pooling layer 3
 model.add(layers.MaxPool2D((2, 2)))
-model.add(layers.Dropout(0.5))  # Dropout
-# Flat Layer
+model.add(layers.Dropout(0.3))
+# Flat
 model.add(layers.Flatten())
-# Dense Layer1
+# Dense layer 1
 model.add(layers.Dense(128))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(layers.Dropout(0.5))  # Dropout
-# Dense Layer2
+model.add(layers.BatchNormalization())
+model.add(layers.Activation('relu'))
+model.add(layers.Dropout(0.5))
+# Dense layer 2
 model.add(layers.Dense(10, activation='softmax'))
 
-# 모델 학습
 model.summary()
-model.compile(optimizer=tf.keras.optimizers.Adam(learning_rate=0.001),
-              loss='categorical_crossentropy', metrics=['accuracy'])
-history = model.fit(x_train, y_train, batch_size=64, epochs=epochs, validation_data=(x_val, y_val))
+model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(x_train, y_train, epochs=epochs, batch_size=64, validation_data=(x_val, y_val))
 test_loss, test_acc = model.evaluate(x_test, y_test)
-print("Test accuracy : ", test_acc)  # Test accuracy : 0.8187
+print("Test accuracy : ", test_acc)
 
 acc = history.history['accuracy']
 val_acc = history.history['val_accuracy']
@@ -154,4 +149,3 @@ for i in np.arange(0, 25):
     axes[i].set_title("True: %s \nPredict: %s" % (class_names[np.argmax(y_test[i])], class_names[predict_classes[i]]))
     axes[i].axis('off')
     plt.subplots_adjust(wspace=1)
-
